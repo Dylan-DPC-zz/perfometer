@@ -65,31 +65,29 @@ impl Counter for ElapsedCounter {
     }
 
     fn end(&self) {
-
         loop {
             let time_start = self.time_start.load(Ordering::SeqCst);
             if time_start > 0 {
                 let mut ts = default_timespec();
                 let _ = unsafe { get_time(&mut ts)};
-                    let elapsed: u64 = u64::try_from(ts.tv_sec).unwrap() - time_start;
-                self.time_start.store(0, Ordering::SeqCst);
+                let elapsed: u64 = u64::try_from(ts.tv_sec).unwrap() - time_start;
+                if self.time_start.compare_and_swap(time_start, 0, Ordering::SeqCst) != time_start {
+                    continue;
+                }
 
-                loop {
-                    let time_least = self.time_least.load(Ordering::SeqCst);
-                    if time_least == 0 || time_least > elapsed {
-                        self.event_count.fetch_add(1u64, Ordering::SeqCst);
-                        self.time_total.fetch_add(elapsed, Ordering::SeqCst);
-                        break;
+                let time_least = self.time_least.load(Ordering::SeqCst);
+                if time_least == 0 || time_least > elapsed {
+                    self.event_count.fetch_add(1u64, Ordering::SeqCst);
+                    self.time_total.fetch_add(elapsed, Ordering::SeqCst);
+                }
+
+                let time_most = self.time_most.load(Ordering::SeqCst);
+                if time_most < elapsed {
+                    if self.time_most.compare_and_swap(time_most, elapsed, Ordering::SeqCst) != time_most {
+                        continue;
                     }
                 }
 
-                loop {
-                    let time_most = self.time_most.load(Ordering::SeqCst);
-                    if time_most < elapsed {
-                        self.time_most.store(elapsed, Ordering::SeqCst);
-                        break;
-                    }
-                }
                 break;
             }
         }
