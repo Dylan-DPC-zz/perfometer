@@ -91,34 +91,6 @@ impl Counter for ElapsedCounter {
                 break;
             }
         }
-
-        loop {
-            let time_start = self.time_start.load(Ordering::SeqCst);
-            if time_start > 0 {
-                let mut ts = default_timespec();
-                let _ = unsafe { get_time(&mut ts)};
-                let elapsed: u64 = u64::try_from(ts.tv_sec).unwrap() - time_start;
-                self.time_start.store(0, Ordering::SeqCst);
-
-                loop {
-                    let time_least = self.time_least.load(Ordering::SeqCst);
-                    if time_least == 0 || time_least > elapsed {
-                        self.event_count.fetch_add(1u64, Ordering::SeqCst);
-                        self.time_total.fetch_add(elapsed, Ordering::SeqCst);
-                        break;
-                    }
-                }
-
-                loop {
-                    let time_most = self.time_most.load(Ordering::SeqCst);
-                    if time_most < elapsed {
-                        self.time_most.store(elapsed, Ordering::SeqCst);
-                        break;
-                    }
-                }
-                break;
-            }
-        }
     }
 
     fn cancel(&self) {
