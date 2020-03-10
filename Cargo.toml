@@ -8,3 +8,4 @@ edition = "2018"
 
 [dependencies]
 libc = "0.2"
+atomic = { version = "0.4", features = ["nightly"]}

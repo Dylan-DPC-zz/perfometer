@@ -29,9 +29,15 @@ impl Registry {
 
     pub fn count(&self, name: &str) -> Result<(), CounterNotFoundError>{
         let counter = self.0.get(name).ok_or_else(|| CounterNotFoundError {counter: name.to_owned()})?;
+        counter.begin();
 
         Ok(())
+    }
 
+    pub fn map_function<F: FnMut(&dyn Counter) -> T, T>(&self, mut function: F) -> HashMap<String, T> {
+        self.0.iter().map(|(key, value)| {
+            (key.to_owned(), function(value.as_ref()))
+        }).collect()
     }
 
 }
