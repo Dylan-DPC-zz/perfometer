@@ -101,14 +101,16 @@ impl Counter for ElapsedCounter {
                 }
 
                 let mean = self.mean.load(Ordering::SeqCst);
+                let dt = elapsed as f64 / 1e6f64;
+
                 let event_count = self.event_count.load(Ordering::SeqCst);
                 let delta_interval = dt - mean;
-                if self.mean.compare_and_swap(mean, mean + delta_interval * event_count) != mean {
+                if self.mean.compare_exchange(mean, mean + delta_interval * event_count as f64, Ordering::SeqCst, Ordering::SeqCst) != Ok(mean) {
                     continue
                 }
 
                 let m2 = self.m2.load(Ordering::SeqCst);
-                if self.m2.compare_and_swap(m2, m2 + dt - mean) != m2 {
+                if self.m2.compare_exchange(m2, m2 + dt - mean, Ordering::SeqCst, Ordering::SeqCst) != Ok(m2) {
                     continue;
                 }
             }
@@ -120,11 +122,11 @@ impl Counter for ElapsedCounter {
             self.event_count.fetch_add(1, Ordering::SeqCst);
             self.time_total.fetch_add(elapsed, Ordering::SeqCst);
 
-            if self.time_least > elapsed {
+            if self.time_least.load(Ordering::SeqCst) > elapsed {
                 self.time_least.store(elapsed, Ordering::SeqCst);
             }
 
-            if self.time_most < elapsed {
+            if self.time_most.load(Ordering::SeqCst) < elapsed {
                 self.time_most.store(elapsed, Ordering::SeqCst);
             }
 
@@ -134,19 +136,19 @@ impl Counter for ElapsedCounter {
                 let mean = self.mean.load(Ordering::SeqCst);
                 let event_count = self.event_count.load(Ordering::SeqCst);
                 let delta_interval = dt - mean;
-                if self.mean.compare_and_swap(mean, mean + delta_interval * event_count) != mean {
+                if self.mean.compare_exchange(mean, mean + delta_interval * event_count as f64, Ordering::SeqCst, Ordering::SeqCst) != Ok(mean) {
                     continue
                 }
 
                 let m2 = self.m2.load(Ordering::SeqCst);
-                if self.m2.compare_and_swap(m2, m2 + dt - mean) != m2 {
+                if self.m2.compare_exchange(m2, m2 + dt - mean, Ordering::SeqCst, Ordering::SeqCst) != Ok(m2) {
                     continue
                 }
 
+                self.time_start.store(0, Ordering::SeqCst);
             }
 
 
-            self.time_start.store(0, Ordering::SeqCst);
 
         }
     }
@@ -184,8 +186,8 @@ impl Counter for IntervalCounter {
                     let last_time = now - self.time_last.load(Ordering::SeqCst);
                     self.time_least.store(last_time, Ordering::SeqCst);
                     self.time_most.store(last_time, Ordering::SeqCst);
-                    self.mean.store(last_time as f64 / 1e6f64);
-                    self.m2.store(0);
+                    self.mean.store(last_time as f64 / 1e6f64, Ordering::SeqCst);
+                    self.m2.store(0.0, Ordering::SeqCst);
                     break;
                 },
                 co => {
@@ -199,7 +201,7 @@ impl Counter for IntervalCounter {
 
                     let dt = interval as f64 / 1e6f64;
                     let delta_interval = dt - self.mean.load(Ordering::SeqCst);
-                    let mean = delta_interval / co;
+                    let mean = delta_interval / co as f64;
                     self.mean.store(mean, Ordering::SeqCst);
                     self.m2.store(delta_interval * (dt - mean), Ordering::SeqCst);
                     break;
